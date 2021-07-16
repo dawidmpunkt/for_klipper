@@ -14,6 +14,8 @@
 #   parameter must be provided.
 #i2c_bus: i2c.1
 
+#Current goal: Typing MCP_STATUS into Terminal should return a single reading
+
 from . import bus
 
 class mcp342x:
