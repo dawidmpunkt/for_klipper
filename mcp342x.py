@@ -51,7 +51,7 @@ class mcp342x:
         self.reactor.pause(self.reactor.monotonic() + .15)
         # Write 0x00
         # Read 3 bytes of data
-        params = self.i2c.i2c_read(0, 3)
+        params = self.i2c.i2c_read([], 3)
         # Dump response into Terminal
         gcmd.respond_info("I2C Response: " + str(params))
 
