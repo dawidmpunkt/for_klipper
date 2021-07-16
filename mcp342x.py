@@ -18,6 +18,7 @@
 # -> Current goal: Typing MCP_STATUS into Terminal should return a single reading
 
 from . import bus
+import logging
 
 class mcp342x:
     def __init__(self, config):
