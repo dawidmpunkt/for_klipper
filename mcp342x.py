@@ -31,6 +31,8 @@ class mcp342x:
         #Register gcode command
         self.gcode.register_command('MCP_STATUS', self.cmd_mcp_status)
 
+    def handle_connect(self):
+        logging.info("mcp_connect")
     #Single reading
     def cmd_mcp_status(self, gcmd):
         # Device Adress for MCP3425 is 0x68. binary: 1101000.  104 is the decimal value.
