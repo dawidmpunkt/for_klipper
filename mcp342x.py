@@ -1,6 +1,6 @@
 # MCP342x external ADC Module for Klipper
-# Currently working on reading data from the first channel
 # External ADC connected via I2C
+
 # MCP3425 reference manual: 
 # http://www.microchip.com/downloads/en/DeviceDoc/22072b.pdf
 
@@ -14,7 +14,8 @@
 #   parameter must be provided.
 #i2c_bus: i2c.1
 
-#Current goal: Typing MCP_STATUS into Terminal should return a single reading
+#Currently working on reading data from the first channel
+# -> Current goal: Typing MCP_STATUS into Terminal should return a single reading
 
 from . import bus
 
