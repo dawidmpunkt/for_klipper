@@ -15,7 +15,7 @@
 #i2c_bus: i2c.1
 
 #Currently working on reading data from the first channel
-# -> Current goal: Typing MCP_STATUS into Terminal should return a single reading
+# -> Current goal: Typing MCP_STATUS into Terminal should return a single reading. Reading should be correct.
 
 from . import bus
 import logging
@@ -40,16 +40,16 @@ class mcp342x:
         # Device Adress for MCP3425 is 0x68. binary: 1101000.  104 is the decimal value.
         # In my case, i2c_write only accepts decimal
         i2c_addr = self.i2c.get_i2c_address()
-        # Command for single shot reading is 10001000. The decimal value is 136.
-        # 8th bit: start conversion
-        # 4th bit: sample rate 15 ms, 16 bit
-        # single-shot, gain = 1,
-        single_shot = 136
-        self.i2c.i2c_write([i2c_addr, single_shot])
+        # Write command for one shot reading is 10000000. The hex value is 0x80.
+        # 7th bit: 1 (start new conversion)
+        # 6+5th bit: 00 (address bit, not used in mcp3425)
+        # 4th bit: 0 (one shot mode)
+        # 3rd+2nd bit: 00 (sample rate 15 ms, 16 bit)
+        # 1st+0th bit: gain selection: 00 (gain = 1)
+        self.i2c.i2c_write([0x80])
 
         # Wait 15ms
         self.reactor.pause(self.reactor.monotonic() + .15)
-        # Write 0x00
         # Read 3 bytes of data
         params = self.i2c.i2c_read([], 3)
         # Dump response into Terminal
