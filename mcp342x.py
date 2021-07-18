@@ -37,16 +37,13 @@ class mcp342x:
         
     #Single reading
     def cmd_mcp_status(self, gcmd):
-        # Device Adress for MCP3425 is 0x68. binary: 1101000.  104 is the decimal value.
-        # In my case, i2c_write only accepts decimal
-        i2c_addr = self.i2c.get_i2c_address()
-        # Write command for one shot reading is 10000000. The hex value is 0x80.
+        # Write command for one shot reading is 10001000. The hex value is 0x80.
         # 7th bit: 1 (start new conversion)
         # 6+5th bit: 00 (address bit, not used in mcp3425)
         # 4th bit: 0 (one shot mode)
-        # 3rd+2nd bit: 00 (sample rate 15 ms, 16 bit)
+        # 3rd+2nd bit: 10 (sample rate 15 ms, 16 bit)
         # 1st+0th bit: gain selection: 00 (gain = 1)
-        self.i2c.i2c_write([0x80])
+        self.i2c.i2c_write([0x88])
 
         # Wait 15ms
         self.reactor.pause(self.reactor.monotonic() + .15)
