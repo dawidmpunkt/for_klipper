@@ -14,8 +14,9 @@
 #   parameter must be provided.
 #i2c_bus: i2c.1
 
-#Typing MCP_STATUS into Terminal returns a single voltage reading
-# -> TODO: create virtual output pin
+#Typing MCP_READ into Terminal returns a single voltage reading
+# -> next TODO: create virtual output pin
+# -> further TODOs: add options for other mcp342x than mcp3425; add options to select gain, resolution, channels etc.; test I2C via mcu; 
 
 from . import bus
 import logging
