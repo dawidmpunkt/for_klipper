@@ -42,8 +42,8 @@ class mcp342x:
         # 104 is the decimal value.
         # In my case, i2c_write only accepts decimal
         i2c_addr = self.i2c.get_i2c_address()
-        # Write command for one shot reading is 10000000. 
-        # The hex value is 0x80.
+        # Write command for one shot reading is 10001000. 
+        # The hex value is 0x88.
         # 7th bit: 1 (start new conversion)
         # 6+5th bit: 00 (address bit, not used in mcp3425)
         # 4th bit: 0 (one shot mode)
