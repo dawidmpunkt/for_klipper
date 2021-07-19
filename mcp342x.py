@@ -8,14 +8,14 @@
 #[mcp342x external_adc_name]
 #Standard Adress is 0x68 (104 in digital)
 #i2c_address: 104
-#currently, only rpi is possible as mcu
+#currently, only rpi works as mcu
 #i2c_mcu: rpi
 #   The i2c address that the chip is using on the i2c bus. This
 #   parameter must be provided.
 #i2c_bus: i2c.1
 
-#Currently working on reading data from the first channel
-# -> Current goal: Typing MCP_STATUS into Terminal should return a single reading. Reading should be correct.
+#Typing MCP_STATUS into Terminal returns a single voltage reading
+# -> TODO: create virtual output pin
 
 from . import bus
 import logging
@@ -30,14 +30,19 @@ class mcp342x:
                                             self.handle_connect)
         self.gcode = self.printer.lookup_object('gcode')
         #Register gcode command
-        self.gcode.register_command('MCP_STATUS', self.cmd_mcp_status)
+        self.gcode.register_command('MCP_READ', self.cmd_mcp_read)
 
     def handle_connect(self):
         logging.info("mcp_connect")
         
     #Single reading
-    def cmd_mcp_status(self, gcmd):
-        # Write command for one shot reading is 10001000. The hex value is 0x80.
+    def cmd_mcp_read(self, gcmd):
+        # Device Adress for MCP3425 is 0x68. binary: 1101000.  
+        # 104 is the decimal value.
+        # In my case, i2c_write only accepts decimal
+        i2c_addr = self.i2c.get_i2c_address()
+        # Write command for one shot reading is 10000000. 
+        # The hex value is 0x80.
         # 7th bit: 1 (start new conversion)
         # 6+5th bit: 00 (address bit, not used in mcp3425)
         # 4th bit: 0 (one shot mode)
@@ -48,9 +53,23 @@ class mcp342x:
         # Wait 15ms
         self.reactor.pause(self.reactor.monotonic() + .15)
         # Read 3 bytes of data
-        params = self.i2c.i2c_read([], 3)
+        params = self.i2c.i2c_read([], 2)
+        response = bytearray(params['response'])
+        value = float((response[0] << 8) + response[1])
+        bit = 16 # 16 bit resolution
+        gain = 1
+        Vref = 2.048
+        # Check sign
+        if value > ( 2 **(bit-1) - 1):
+            value -= (2**bit)         
+        # calculate Voltage
+        # LSB: 62.5 mV in 16 bit resolution
+        LSB = (Vref*2)/(2**bit) 
+        rVolt = float(value) * LSB / gain
+        
         # Dump response into Terminal
-        gcmd.respond_info("I2C Response: " + str(params))
+        gcmd.respond_info('I2C Response: {} '.format(rVolt))
+
 
 def load_config_prefix(config):
     return mcp342x(config)
