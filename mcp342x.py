@@ -38,10 +38,6 @@ class mcp342x:
         
     #Single reading
     def cmd_mcp_read(self, gcmd):
-        # Device Adress for MCP3425 is 0x68. binary: 1101000.  
-        # 104 is the decimal value.
-        # In my case, i2c_write only accepts decimal
-        i2c_addr = self.i2c.get_i2c_address()
         # Write command for one shot reading is 10001000. 
         # The hex value is 0x88.
         # 7th bit: 1 (start new conversion)
