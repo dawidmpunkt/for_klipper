@@ -15,7 +15,7 @@
 #   The i2c address that the chip is using on the i2c bus. This
 #   parameter must be provided.
 #i2c_bus: i2c.1
-#sensor_type: #e.g. MCP3425
+#sensor_type: 
 
 #Typing MCP_READ into Terminal returns a single voltage reading
 # -> next TODO: create virtual output pin
@@ -29,6 +29,17 @@ import logging
 SUPP_DEV_18 = ['MCP3421', 'MCP3422', 'MCP3423', 'MCP3424']
 SUPP_DEV_16 = ['MCP3425', 'MCP3426', 'MCP3427', 'MCP3428']
 
+N_CHANNELS = {
+    'MCP3421': 1,
+    'MCP3422': 2,
+    'MCP3423': 3,
+    'MCP3424': 4,
+    'MCP3425': 1,
+    'MCP3426': 2,
+    'MCP3427': 3,
+    'MCP3428': 4
+}
+
 MCP_GAIN = {
     1: 0b00000000,
     2: 0b00000001,
@@ -36,8 +47,8 @@ MCP_GAIN = {
     8: 0b00000011
 }
 
-MCP_RESOLUTIONS = {
-    12:  0b00000000,
+MCP_RESOLUTION = {
+    12: 0b00000000,
     14: 0b00000100,
     16: 0b00001000,
     18: 0b00001100
@@ -56,12 +67,15 @@ class mcp342x:
         self.name = config.get_name().split()[-1]
         self.reactor = self.printer.get_reactor()
         self.i2c = bus.MCU_I2C_from_config(config,
-                                           default_speed=100000)
+                            default_speed=100000)
         self.deviceId = config.get('sensor_type')
+        self.channels = config.getint('channels',minval=1, 
+                            maxval=N_CHANNELS[self.deviceId],
+                            default=1)
         self.resolution = config.get('resolution',16)
         if self.deviceId not in SUPP_DEV_16 and SUPP_DEV_18:
             raise config.error(self.deviceId + " not supported")
-        if self.resolution not in MCP_RESOLUTIONS:
+        if self.resolution not in MCP_RESOLUTION:
             raise config.error("Invalid MCP342x resolution")
         elif self.resolution == 18 and \
                 self.deviceId in SUPP_DEV_16:
@@ -81,6 +95,8 @@ class mcp342x:
         
     #Single reading
     def cmd_mcp_read(self, gcmd):
+        for i in range(self.channels):
+            gcmd.respond_info('Calling Channel {}'.format(i))
         # Write command for one shot reading is 10001000. 
         # The hex value is 0x88.
         # 7th bit: 1 (start new conversion)
@@ -100,8 +116,8 @@ class mcp342x:
         value = float((response[0] << 8) + response[1])
         Vref = 2.048
         # Check sign
-        if value > ( 2 **(bit-1) - 1):
-            value -= (2**bit)         
+        if value > ( 2 **(self.resolution-1) - 1):
+            value -= (2**self.resolution)         
         # calculate Voltage
         # LSB: 62.5 mV in 16 bit resolution
         LSB = (Vref*2)/(2**self.resolution) 
