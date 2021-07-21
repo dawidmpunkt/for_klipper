@@ -2,13 +2,8 @@
 # External ADC connected via I2C
 #
 # Compatible Sensors:
-#       MCP3421 - Untested
-#       MCP3422 - Untested
-#       MCP3423 - Untested
-#       MCP3424 - Untested
-#       MCP3425 - Tested on Linux MCU.
-#       MCP3428 - Untested
-#
+#       MCP3421 - MCP3428
+#       Tested MCP3425 on Linux MCU
 #############################################################
 
 #add to printer.cfg
@@ -20,7 +15,7 @@
 #   The i2c address that the chip is using on the i2c bus. This
 #   parameter must be provided.
 #i2c_bus: i2c.1
-#sensor_type: 
+#sensor_type: #e.g. MCP3425
 
 #Typing MCP_READ into Terminal returns a single voltage reading
 # -> next TODO: create virtual output pin
@@ -31,29 +26,50 @@
 from . import bus
 import logging
 
+SUPP_DEV_18 = ['MCP3421', 'MCP3422', 'MCP3423', 'MCP3424']
+SUPP_DEV_16 = ['MCP3425', 'MCP3426', 'MCP3427', 'MCP3428']
+
+MCP_GAIN = {
+    1: 0b00000000,
+    2: 0b00000001,
+    4: 0b00000010,
+    8: 0b00000011
+}
+
 MCP_RESOLUTIONS = {
-    8:  0b00000000,
-    12: 0b00000100,
+    12:  0b00000000,
+    14: 0b00000100,
     16: 0b00001000,
     18: 0b00001100
 }
 
+MCP_CHANNEL = {
+    1: 0b00000000,
+    2: 0b00100000,
+    3: 0b01000000,
+    4: 0b01100000
+}
 
 class mcp342x:
     def __init__(self, config):
         self.printer = config.get_printer()
         self.name = config.get_name().split()[-1]
         self.reactor = self.printer.get_reactor()
-        self.i2c = bus.MCU_I2C_from_config(config, 
+        self.i2c = bus.MCU_I2C_from_config(config,
                                            default_speed=100000)
         self.deviceId = config.get('sensor_type')
         self.resolution = config.get('resolution',16)
+        if self.deviceId not in SUPP_DEV_16 and SUPP_DEV_18:
+            raise config.error(self.deviceId + " not supported")
         if self.resolution not in MCP_RESOLUTIONS:
-            raise config.error("Invalid MCP342x resolution.)
-        elif resolution == 18 and \
-                self.deviceId in ("MCP3425", "MCP3426", "MCP3427"):
+            raise config.error("Invalid MCP342x resolution")
+        elif self.resolution == 18 and \
+                self.deviceId in SUPP_DEV_16:
             raise config.error("18 bit sampling not supported by" +
-                            self.device)
+                            self.deviceId)
+        self.gain = config.get('gain',1)
+        if self.gain not in MCP_GAIN:
+            raise config.error("Invalid gain")
         self.printer.register_event_handler("klippy:connect",
                                             self.handle_connect)
         self.gcode = self.printer.lookup_object('gcode')
@@ -82,16 +98,14 @@ class mcp342x:
         params = self.i2c.i2c_read([], 2)
         response = bytearray(params['response'])
         value = float((response[0] << 8) + response[1])
-        bit = 16 # 16 bit resolution
-        gain = 1
         Vref = 2.048
         # Check sign
         if value > ( 2 **(bit-1) - 1):
             value -= (2**bit)         
         # calculate Voltage
         # LSB: 62.5 mV in 16 bit resolution
-        LSB = (Vref*2)/(2**bit) 
-        rVolt = float(value) * LSB / gain
+        LSB = (Vref*2)/(2**self.resolution) 
+        rVolt = float(value) * LSB / self.gain
         
         # Dump response into Terminal
         gcmd.respond_info('I2C Response: {} '.format(rVolt))
