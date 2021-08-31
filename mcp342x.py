@@ -13,7 +13,7 @@
 #[mcp342x external_adc_name]
 #Standard Adresses:
 # MCP3421: 104 (0x68 in hex)
-# ADS1015: 104 (0x68 in hex)
+# ADS1015: 72 (0x48 in hex)
 #i2c_address: 104
 #currently, only rpi works as mcu
 #i2c_mcu: rpi
