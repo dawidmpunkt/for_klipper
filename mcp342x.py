@@ -1,6 +1,6 @@
 # MCP342x external ADC Module for Klipper
 # External ADC connected via I2C
-# Date: 31.08.2021 - Dawid Murawski, dawid.m@gmx.net
+# Date: 01.09.2021 - Dawid Murawski, dawid.m@gmx.net
 #
 # Compatible ADCs:
 #       MCP3421 - MCP3428
@@ -169,19 +169,25 @@ ADS_RATE = {
     3300: 7
 }
 
+DEFAULT_RATE = {
+    'MCP': 240,
+    'ADS': 1600,
+}
+
 class mcp342x:
     def __init__(self, config):
         self.printer = config.get_printer()
         self.name = config.get_name().split()[-1]
         self.reactor = self.printer.get_reactor()
         self.i2c = bus.MCU_I2C_from_config(config,
-                            default_speed=100000)
+                    default_speed=100000)
         self.deviceId = config.get('sensor_ID').upper()
         self.devicePrefix = self.deviceId[0:3]
         self.resolution = config.getint('resolution',12)
         # Check if device is supported
-        if self.deviceId not in (SUPP_DEV_16 and \
-                SUPP_DEV_18 and SUPP_DEV_12):
+        if self.deviceId not in SUPP_DEV_18 and \
+                self.deviceId not in SUPP_DEV_16 and \
+                self.deviceId not in SUPP_DEV_12:
             raise config.error(self.deviceId + " not supported")
         # Set channel
         self.channel = config.getint('channel',minval=1,
@@ -204,8 +210,6 @@ class mcp342x:
         self.printer.register_event_handler("klippy:connect",
                                             self.handle_connect)
         self.gcode = self.printer.lookup_object('gcode')
-        # Define reference value
-        self.LSB = (VREF*2)/(2**self.resolution)
         #Register gcode command
         self.gcode.register_command('MCP_READ', self.cmd_mcp_read)
         # Register ADC
@@ -214,7 +218,7 @@ class mcp342x:
 
     def get_status(self, eventtime):
         last_value = self.sample_voltage(self.channel, 
-        self.gain, self.resolution, 1600)
+        self.gain, self.resolution, DEFAULT_RATE[self.devicePrefix])
         return {
             'voltage': float(last_value[0]),
             'time': float(last_value[1])
@@ -223,32 +227,48 @@ class mcp342x:
     def sample_voltage(self, channel, gain, resolution, rate):
         _gain = eval(self.devicePrefix + "_GAIN")[gain]
         _rate = eval(self.devicePrefix + "_RATE")[rate]
-        # Setup ADC
+        # Setup ADC and write ADC configuration
+        LSB = (VREF*2)/(2**resolution) 
         if self.devicePrefix == "MCP":
             _rate = MCP_RES[resolution]
+            rate = _rate[0]
             conf = 0b10000000 | channel << 5 | _rate[1] << 2 | _gain
+            self.i2c.i2c_write([conf])
+            _read = []
         else:
-            _conf1 = 0b10000001 | channel << 4 | _gain << 1
+            _conf1 = 0b10000001 | int(channel) << 4 | _gain << 1
             _conf2 = 0b00000011 | _rate << 5
             conf = [0b00000001, _conf1, _conf2]
-        LSB = (VREF*2)/(2**resolution)
-        # Write ADC Configuration
-        self.i2c.i2c_write(bytearray(conf))
+            _read = [0b00000000]
+            self.i2c.i2c_write(bytearray(conf))   
         # Wait for conversion end
-        self.reactor.pause(self.reactor.monotonic() + (1.05 / int(rate)))
+        self.reactor.pause(self.reactor.monotonic() \
+                + (1.05 / float(rate)))
         # Read 3 bytes of data
-        params = self.i2c.i2c_read([0b00000000], 3)
+        params = self.i2c.i2c_read(_read, 3)
         response = bytearray(params['response'])
         #Calculate response according to
-        ##12, 14, 16 or 18 bit resolution
-        _value = response[0] << (resolution - 8)
+        #12, 14, 16 or 18 bit resolution
         if self.devicePrefix == 'MCP':
-            #Cut repeating leading bits
-            _value &= bin(2 ** resolution - 1)
-        value = float(_value)
+            if resolution == 16:
+                value = response[0] << 8 | response[1]
+            elif resolution < 16:
+                value = response[0] << 8 | response[1]
+                #Cut repeating leading bits
+                value &= ((2 ** resolution)-1)
+            else:
+                value = response[2] << 16 | response[1] << 8 \
+                        | response[2] 
+                value &= ((2 ** resolution)-1)
+        else:
+            if resolution < 18:
+                value = response[0] << (resolution - 8) | response[1]
+            else:
+                value = response[0] << (resolution - 8) \
+                    | response [1] << (resolution - 16) | response[2]
         # Check sign
-        if value > ( 2 **(resolution-1) - 1):
-            value -= (2**resolution)
+        if (value & 1 << (resolution - 1)) != 0:
+            value -= ((1 << (resolution - 1)))
         # calculate Voltage
         rVolt = value * LSB / gain
         rTime = params['#receive_time']
@@ -269,22 +289,24 @@ class mcp342x:
 
 #Single reading
     def cmd_mcp_read(self, gcmd):
-        channel = int(gcmd.get('CHANNEL', self.channel)) - 1
+        channel = int(gcmd.get('CHANNEL', self.channel + 1)) - 1
         gain = float(gcmd.get('GAIN',self.gain))
-        resolution = float(gcmd.get('RESOLUTION',self.resolution))
+        resolution = int(gcmd.get('RESOLUTION',self.resolution))
         # Setup ADC
         if self.devicePrefix == "MCP":
             try:
-                rate = int(gcmd.get('RATE'))
-                resolution = _rate[0]
+                rate = float(gcmd.get('RATE'))
+                _rate = MCP_RATE[rate]
+                resolution = int(_rate[0])
             except:
                 _rate = MCP_RES[resolution]
+                rate = _rate[0]
         else:
             rate = int(gcmd.get('RATE', 1600))
         rValue = self.sample_voltage(channel, gain, resolution, rate)
         Volt = rValue[0]
         Time = rValue[1]
         gcmd.respond_info('Channel {} Voltage: {} V, Time: {}'.format(channel + 1, Volt, Time))
-
+        
 def load_config_prefix(config):
     return mcp342x(config)
